@@ -83,7 +83,7 @@ v_k=zeros(n,1);
 while(err_0>tol)
         
     % Obtain the gradient and Hessian
-    [~,Dg,H,~]=get_g3d(w_0,X,target_vols,bx,periodic);
+    [~,Dg,H,~]=kantorovich(w_0,X,target_vols,bx,periodic);
          
     % The Hessian H is singular, with one-dimensional kernel (1,1,...,1), truncate H to produce the non-singular H_mod
     H_mod = H(1:n-1,1:n-1);
