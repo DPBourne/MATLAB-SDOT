@@ -22,8 +22,8 @@ See LICENCE.md
 ## Software limitations ##
 
 * The code is limited to 3D (2D code coming soon).
-* The source measure is the Lebesgue measure on a cuboid (rather than a general absolutely continuous measure).
-* The transport cost is either the quadratic cost or the periodic quadratic cost (optimal transport on a triply-periodic box).
+* The source measure is the Lebesgue measure on a cuboid.
+* The transport cost is either the quadratic cost or the periodic quadratic cost.
 
 We plan to address some of these limitations in future updates.
 
