@@ -22,7 +22,7 @@ See LICENCE.md
 ## Software limitations ##
 
 * The code is limited to 3D (2D code coming soon).
-* The source measure is the Lebesgue measure on a cuboid.
+* The source measure is the Lebesgue measure on a cuboid (rather than a general absolutely continuous measure).
 * The transport cost is either the quadratic cost or the periodic quadratic cost (optimal transport on a triply-periodic box).
 
 We plan to address some of these limitations in future updates.
@@ -30,7 +30,7 @@ We plan to address some of these limitations in future updates.
 ## Related software ##
 
 * Quentin's code
-* [Geogram by Bruno Lévy](https://github.com/BrunoLevy/geogram)
+* [Geogram by Bruno Lévy](https://github.com/BrunoLevy/geogram), <https://brunolevy.github.io/geogram/dir_dfcc9fc6d69b9d57f9f159e89cabbae9.html>
 * [Numerical Tours by Gabriel Peyré](https://nbviewer.org/github/gpeyre/numerical-tours/blob/master/matlab/optimaltransp_7_semidiscrete.ipynb)
 
 ## Main contributors ##
