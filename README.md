@@ -30,9 +30,9 @@ We plan to address some of these limitations in future updates.
 ## Related software ##
 
 * [MongeAmpere](https://github.com/mrgt/MongeAmpere) and [PyMongeAmpere](https://github.com/mrgt/PyMongeAmpere) by Quentin Mérigot
-* [sdot by Jocelyn Meyron](https://github.com/nyorem/sdot)
-* [Geogram by Bruno Lévy](https://github.com/BrunoLevy/geogram), [documentation](https://brunolevy.github.io/geogram/dir_dfcc9fc6d69b9d57f9f159e89cabbae9.html)
-* [Numerical Tours by Gabriel Peyré](https://nbviewer.org/github/gpeyre/numerical-tours/blob/master/matlab/optimaltransp_7_semidiscrete.ipynb)
+* [sdot](https://github.com/nyorem/sdot) by Jocelyn Meyron
+* [Geogram](https://github.com/BrunoLevy/geogram) by Bruno Lévy, [documentation](https://brunolevy.github.io/geogram/dir_dfcc9fc6d69b9d57f9f159e89cabbae9.html) 
+* [Numerical Tours](https://nbviewer.org/github/gpeyre/numerical-tours/blob/master/matlab/optimaltransp_7_semidiscrete.ipynb)  by Gabriel Peyré
 
 ## Main contributors ##
 
