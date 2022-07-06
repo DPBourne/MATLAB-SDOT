@@ -325,7 +325,8 @@ function [g,Dg,H,actual_vols] = get_g_kper(w,X,target_vols,bx)
 
     % Definition of g, a convex function of the weights 
     g=dot(Dg,w)-sum(transport_costs); 
-    
+
+    poslength=@(x)sum(x>0);
     % Pre-allocate memory
     numNZ=sum(cellfun(poslength,vfn(:,3)))/2;
     
@@ -370,7 +371,7 @@ function [g,Dg,H,actual_vols] = get_g_kper(w,X,target_vols,bx)
             
             % We only need to calculate if it is a true neighbour (and we also exploit that the matrix is symmetric)
             
-            if (k>i)  % Upper triangular elements only
+            if(k>i)  % Upper triangular elements only
                 
                 % The indices of the vertices for the face between cell i and cell k (neighbour j)
                 Face_Vertex_Indices = Face_Index_i{j};
@@ -413,7 +414,7 @@ function [g,Dg,H,actual_vols] = get_g_kper(w,X,target_vols,bx)
     end
     
     % Now use H_spvals to construct the sparse matrix
-    H=sparse(H_spvals_i,H_spvals_j,H_spvals_val,Nw,Nw);
+    H=sparse(H_spvals_i(1:r-1),H_spvals_j(1:r-1),H_spvals_val(1:r-1),Nw,Nw);
     
     % Having calculated the upper triangular part we can find all off-diagonal entries by adding the transpose
     H=H+H';
