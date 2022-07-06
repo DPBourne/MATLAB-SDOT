@@ -103,6 +103,7 @@ while(err_0>tol)
     % The Hessian H is singular, with one-dimensional kernel (1,1,...,1).
     % Truncate H to produce the non-singular H_mod
     H_mod = H(1:n-1,1:n-1);
+    clear H;
     
     % Solve the linear system
     v_k(1:n-1) = -H_mod\Dg(1:n-1);
