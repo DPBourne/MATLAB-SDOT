@@ -43,19 +43,20 @@ function [g,Dg,H,actual_vols] = kantorovich(w,X,target_vols,bx,periodic,varargin
 
 %% Catch errors and process the optional argument
 
-if(nargin==6)
-    checkneighbours=varargin{1};
-else
-    checkneighbours=true;
-end
-
 % If periodic=true, then first call get_g_voro to evaluate g
 if(periodic)
-    
     % Map the seeds into the primary domain
     X=mod(X*diag(1./bx),1)*diag(bx);
-    
-    [g,Dg,H,actual_vols,success]=get_g_voro(w,X,target_vols,bx,periodic,checkneighbours);
+
+
+    % Decide whether to check that the calculation using normal distances to faces is correct
+    if(nargin==6)
+        checkneighbours=varargin{1};
+    else
+        checkneighbours=true;
+    end
+        
+    [g,Dg,H,actual_vols,success]=get_g_voro(w,X,target_vols,bx,checkneighbours);
     % If get_g_voro detected a problem, then it exits with success=false.
     % In this case we then call get_g_kper, as this is robust (but slower)
     if(~success)
@@ -63,9 +64,9 @@ if(periodic)
         [g,Dg,H,actual_vols]=get_g_kper(w,X,target_vols,bx);
     end
 else
-    % If periodic=false, then call get_g_voro (which is always robust in
+    % If periodic=false, then call get_g_nonperiodic (which is always robust in
     % this case)
-    [g,Dg,H,actual_vols,~]=get_g_voro(w,X,target_vols,bx,periodic);
+    [g,Dg,H,actual_vols]=get_g_nonperiodic(w,X,target_vols,bx);
 end
 
 % End of main function
@@ -73,36 +74,29 @@ end
 
 
 % Function get_g_voro
+function [g,Dg,H,actual_vols,success] = get_g_voro(w,X,target_vols,bx,checkneighbours)
+    
+%% WARNING! Is only accurate when the boundary between two cells is composed of a single facet
+%
+% [g,Dg,H,actual_vols,success] = get_g_voro(w,X,target_vols,bx,checkneighbours)
+%
+% Input arguments
+%         w            - is the weights, an Nx1 array
+%         X            - is the positions, an Nx3 array
+%         target_vols  - target volumes, an Nx1 array
+%         bx           - box size, a 1x3 array
+%         checkneighbours - is a boolean true/false to indicate whether the function checks for problems with neighbours (multiple facets or self facets)
+    
+% Return arguments
+%         g            - function g(w;x)
+%         Dg           - gradient of g wrt w
+%         H            - the Hessian d^2g, a sparse matrix
+%         actual_vols  - the actual volumes of the Laguerre diagram with seeds X and weights w
+%         success      - a flag to indicate everything has been calculated successfully
+    
+%% Catch errors and process arguments
 
-function [g,Dg,H,actual_vols,success] = get_g_voro(w,X,target_vols,bx,periodic,varargin)
-        
-    %% WARNING! Is only accurate when the boundary between two cells is composed of a single facet
-    %
-    % [g,Dg,H,actual_vols,success] = get_g(w,X,target_vols,bx,periodic,OPTcheckneighbours)
-    %
-    % Input arguments
-    %         w            - is the weights, an Nx1 array
-    %         X            - is the positions, an Nx3 array
-    %         target_vols  - target volumes, an Nx1 array
-    %         bx           - box size, a 1x3 array
-    %         periodic     - periodic flag (a boolean true/false to indicate periodic or not)
-    %         OPTcheckneighbours - is an optional boolean true/false to indicate whether the function checks for problems with neighbours (multiple facets or self facets)
-    
-    % Return arguments
-    %         g            - function g(w;x)
-    %         Dg           - gradient of g wrt w
-    %         H            - the Hessian d^2g, a sparse matrix
-    %         actual_vols  - the actual volumes of the Laguerre diagram with seeds X and weights w
-    %         success      - a flag to indicate everything has been calculated successfully
-    
-    %% Catch errors and process arguments
-    
-    % Here we check the input arguments to see if the optional 'checkneighbours' flag has been set
-    if(nargin==6)
-        checkneighbours=varargin{1};
-    else
-        checkneighbours=false;
-    end
+    % Turn off checking when used as an internal function
     
     [Nw,Mw]=size(w);    
     
@@ -140,7 +134,7 @@ function [g,Dg,H,actual_vols,success] = get_g_voro(w,X,target_vols,bx,periodic,v
     %% Computations
     
     % Use mexPDallfaces to calculate the Laguerre diagram
-    [actual_vols,transport_costs,~,vfn]=mexPDallfaces(bx,X,w,periodic);
+    [actual_vols,transport_costs,~,vfn]=mexPDallfaces(bx,X,w,true);
     
     % Gradient of g
     Dg=actual_vols-target_vols;
@@ -151,22 +145,23 @@ function [g,Dg,H,actual_vols,success] = get_g_voro(w,X,target_vols,bx,periodic,v
     % Preallocate memory for possible speed improvement
     % Upper bound on number of off-diagonal nonzero entries in the Hessian is the sum of the number of neighbours over all cells 
     numNZ=sum(cellfun(@length,vfn(:,3)));
-    % Make a zero array of the correct size
-    Z=zeros(1,numNZ);
     
     % Indices of matrix to store inter-seed distances and face areas
-    AD_spvals_i=Z;
-    AD_spvals_j=Z;
+    DA_spvals_i=zeros(1,numNZ);
+    DA_spvals_j=zeros(1,numNZ);
     
     % Values
-    D_spvals_val=Z;
-    A_spvals_val=Z;
+    DA_spvals_val=zeros(1,numNZ);
+    
+    %DA_spvals_i=[];
+    %DA_spvals_j=[];
+
+    %DA_spvals_val=[];
     
     % Index to keep track of the number of entries in the sparse matrix
     r=1;
     
-    % Loop over cells
-    
+    % Loop over cells    
     for i=1:Nw
         % Coordinates of the seed location of the ith cell
         xi=X(i,:);
@@ -207,13 +202,11 @@ function [g,Dg,H,actual_vols,success] = get_g_voro(w,X,target_vols,bx,periodic,v
         for j=1:Num_N_i
             
             % The cell index of neighbour j
-            k = N_i(j);
+            k=N_i(j);
             
             % We only need to calculate if the neighbour is a not a part of the boundary (non-positive k)
             if(k>0)
-                
-                xk=X(k,:);
-                
+                                
                 % The indices of the vertices for the face between cell i and cell k (neighbour j)
                 Face_Vertex_Indices=Face_Index_i{j};
                 
@@ -223,18 +216,9 @@ function [g,Dg,H,actual_vols,success] = get_g_voro(w,X,target_vols,bx,periodic,v
                 % Area of the face 
                 a_ik=Face_Areas_i{j};
                 
-                AD_spvals_i(r)=i;
-                AD_spvals_j(r)=k;
-                
-                A_spvals_val(r)=a_ik;
-                
-                % %%%%%%%%%%%%%%%%% For checking %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-                %                a_ik_polyarea = polygonArea3d(Face_Vertices);
-                %                if(abs(a_ik-a_ik_polyarea)>1e-10)
-                %                    disp(sprintf('Error in face areas at i=%d k=%d',i,k))
-                %                end
-                % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-                
+                DA_spvals_i(r)=i;
+                DA_spvals_j(r)=k;
+                                
                 % Calculate the signed distance from seed to face            
                 % Find any point on face, for simplicity just choose the first vertex
                 
@@ -243,29 +227,8 @@ function [g,Dg,H,actual_vols,success] = get_g_voro(w,X,target_vols,bx,periodic,v
                 % Get outward normal to face
                 n=Face_Normals_i{j};
                 
-                % The signed distance to the face is
-                D_spvals_val(r)=dot(pt-xi,n);
-                
-                % %%%%%%%%%%%%%%%%% For checking %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-                %                point_on_face = sum(Face_Vertices)/length(Face_Vertices);
-                
-                % Calculate K(x,y) and K(x,z) for x = point on the face
-                %                k_xk = kper_bx(point_on_face,xk,bx);
-                
-                % NOTE!
-                % We think that k_xi should always be zero, possible speed up
-                %                k_xi = kper_bx(point_on_face,xi,bx);
-                
-                % del_k = K(x,y) - K(x_z)
-                % del_k keeps track of which periodic copies of the seeds are used to construct the face
-            
-                %                del_k = k_xk - k_xi;
-                %                dist_ik = norm(xi-xk+del_k*diag(bx));
-                
-                %                Dk_spvals_val(r)=dist_ik;
-                
-                % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-                
+                % The weighted (with -2/area-of-face) signed distance to the face is
+                DA_spvals_val(r)=-2.*dot(pt-xi,n)/a_ik;
                 
                 % Increment r to keep track of number of non-zero entries of A and D
                 r=r+1;
@@ -274,29 +237,23 @@ function [g,Dg,H,actual_vols,success] = get_g_voro(w,X,target_vols,bx,periodic,v
         end
     end
     
-    % Now use AD_spvals and A_spvals and D_spvals to construct the sparse matrices containing the face areas (A)
-    % and the interparticle distances (D). A is symmetric, D is not as (i,j) measures the (signed) distance from
-    % particle i to the face of cell i that is formed from the cell of a periodic copy of particle j. To get the
-    % interparticle distance we need to form D+D'
-    
-    A=sparse(AD_spvals_i(1:r-1),AD_spvals_j(1:r-1),A_spvals_val(1:r-1),Nw,Nw);
-    D=sparse(AD_spvals_i(1:r-1),AD_spvals_j(1:r-1),D_spvals_val(1:r-1),Nw,Nw);
-
-    % Construct the symmetric interparticle distance matrix (works in periodic and non-periodic case)
-    D=D+D';
+    % Now use AD_spvals and DA_spvals to construct the Hessian.
+    DA=sparse([DA_spvals_i(1:r-1),DA_spvals_j(1:r-1)],[DA_spvals_j(1:r-1),DA_spvals_i(1:r-1)],[DA_spvals_val(1:r-1),DA_spvals_val(1:r-1)],Nw,Nw);
 
     % Reciprocal distance (we have to do it this way because 1./D when D is sparse makes a full matrix with lots of NaNs
-    inverse_D=spfun(@(x) 1./x, D);
-    
-    % Construct the off-diagonal entries
-    H=-0.5*A.*inverse_D;
+    H=spfun(@(x)1./x,DA);
     
     % Now having all the off-diagonal entries we can add the diagonal entries
     H=H-spdiags(sum(H)',0,Nw,Nw);
-  
+    
     % We finished!
-    success=true;
+    success=true;    
 end
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% PERIODIC, using KPER_BX
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Function get_g_kper
@@ -323,7 +280,7 @@ function [g,Dg,H,actual_vols] = get_g_kper(w,X,target_vols,bx)
 %         H            - the Hessian d^2g, a sparse matrix
 %         actual_vols  - the actual volumes of the Laguerre diagram with seeds X and weights w
     
-    %% Catch errors
+%% Catch errors
     
     [Nw,Mw]=size(w);    
     
@@ -368,14 +325,21 @@ function [g,Dg,H,actual_vols] = get_g_kper(w,X,target_vols,bx)
 
     % Definition of g, a convex function of the weights 
     g=dot(Dg,w)-sum(transport_costs); 
-        
-    % FUTURE DEVELOPMENT? Preallocate memory for the sparse matrix entries
-    % INSERT HERE
     
+    % Pre-allocate memory
+    numNZ=sum(cellfun(poslength,vfn(:,3)))/2;
+    
+    % Indices of matrix to store Hessian values
+    H_spvals_i=zeros(1,numNZ);
+    H_spvals_j=zeros(1,numNZ);
+    
+    % Values
+    H_spvals_val=zeros(1,numNZ);
+
     % Matrices to store the values and indices for the sparse Hessian matrix
-    H_spvals_i=[];
-    H_spvals_j=[];
-    H_spvals_val=[];
+    %    H_spvals_i=[];
+    %    H_spvals_j=[];
+    %    H_spvals_val=[];
     
     % Index to keep track of the number of entries in the sparse matrix
     r=1;
@@ -413,10 +377,10 @@ function [g,Dg,H,actual_vols] = get_g_kper(w,X,target_vols,bx)
                 
                 % The face vertices for the face between cell i and cell k (neighbour j)
                 Face_Vertices = Verticies_Cell_i(Face_Vertex_Indices,:);
-                                           
+                
                 % Coordinates of the the seed for cell k
                 xk = X(k,:);
-                                
+                
                 % Find any point in the interior of the face
                 point_on_face = sum(Face_Vertices)/length(Face_Vertices);
                 
@@ -429,18 +393,13 @@ function [g,Dg,H,actual_vols] = get_g_kper(w,X,target_vols,bx)
                 
                 % del_k = K(x,y) - K(x_z)
                 % del_k keeps track of which periodic copies of the seeds are used to construct the face
-            
                 del_k = k_xk - k_xi;
                 
                 % Area of the face
-                % OLD METHOD, uses MatGeom library, very slow
-                % a_ik_polyarea = polygonArea3d(Face_Vertices);
-              
                 a_ik = Face_Areas_i{j};
                 
                 % The correct distance between neighbours accounts for the fact that the neighbour could
                 % be a periodic copy of the original seed
-                
                 dist_ik = norm(xi-xk+del_k*diag(bx));
                 
                 % Indices and value of the Hessian
@@ -462,4 +421,150 @@ function [g,Dg,H,actual_vols] = get_g_kper(w,X,target_vols,bx)
     % Now having all the off-diagonal entries we can add the diagonal entries
     H=H-spdiags(sum(H)',0,Nw,Nw);
     
+end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% NON-PERIODIC
+
+function [g,Dg,H,actual_vols] = get_g_nonperiodic(w,X,target_vols,bx)
+%
+% Non-periodic calculation of g, Dg and Hessian
+%
+% [g,Dg,H,actual_vols] = get_g(w,X,target_vols,bx)
+%
+% Input arguments
+%         w            - is the weights, an Nx1 array
+%         X            - is the positions, an Nx3 array
+%         target_vols  - target volumes, an Nx1 array
+%         bx           - box size, a 1x3 array
+    
+% Return arguments
+%         g            - function g(w;x)
+%         Dg           - gradient of g wrt w
+%         H            - the Hessian d^2g, a sparse matrix
+%         actual_vols  - the actual volumes of the Laguerre diagram with seeds X and weights w
+    
+%% Catch errors and process arguments
+    
+% Turn off checking when used as an internal function
+    
+    [Nw,Mw]=size(w);    
+    
+    if(Mw~=1)
+        error('w should be an N x 1 array where N is the number of cells');
+    end
+
+    [NX,MX]=size(X);
+
+    if(MX~=3)
+        error('X should be an N x 3 array where N is the number of cells');
+    end
+
+    if(NX~=Nw)
+        error('The number of cells represented by w and X disagree, w: %d and X %d',Nw,NX);
+    end
+
+    [Ntv,Mtv]=size(target_vols);
+    if(Mtv~=1)
+        error('target_vols should be an N x 1 array where N is the number of cells');
+    end
+
+    if(Ntv~=Nw)
+        error('The number of cells represented by w and target_vols disagree, w: %d and target_vols: %d',Nw,Ntv);
+    end
+
+    total_vol=sum(target_vols);
+    bx_vol=bx(1)*bx(2)*bx(3);
+
+    if(abs(total_vol-bx_vol)/bx_vol>1e-10)
+        error('The sum of the target volumes is different to the volume of the box');
+    end
+
+    
+    %% Computations
+    
+    % Use mexPDallfaces to calculate the Laguerre diagram
+    [actual_vols,transport_costs,~,vfn]=mexPDallfaces(bx,X,w,false);
+    
+    % Gradient of g
+    Dg=actual_vols-target_vols;
+
+    % Definition of g, a convex function of the weights 
+    g=dot(Dg,w)-sum(transport_costs); 
+    
+    % Preallocate memory for possible speed improvement
+    % Upper bound on number of off-diagonal nonzero entries in the Hessian is the sum of the number of neighbours over all cells
+    
+    poslength=@(x)(sum(x>0));
+    numNZ=sum(cellfun(poslength,vfn(:,3)))/2;
+    
+    % Indices of matrix to store Hessian values
+    H_spvals_i=zeros(1,numNZ);
+    H_spvals_j=zeros(1,numNZ);
+    
+    % Values
+    H_spvals_val=zeros(1,numNZ);
+
+    % Index to keep track of the number of entries in the sparse matrix
+    r=1;
+    
+    % Loop over cells
+    for i=1:Nw
+        % Coordinates of the seed location of the ith cell
+        xi=X(i,:);
+
+        % The vertices for the ith cell
+        Vertices_Cell_i=vfn{i,1};
+        
+        % The list of neighbour indices of the ith cell - boundaries have negative indices
+        N_i=vfn{i,3};
+        
+        % The vertex indices for each of the faces between the cell and the neighbours in N_i
+        Face_Index_i=vfn{i,2}(:,1);
+        Face_Areas_i=vfn{i,2}(:,2);
+        
+        % The number of neighbours
+        Num_N_i=size(N_i);
+        
+        % Calculate H_ij for j in N_i 
+        for j=1:Num_N_i
+            
+            % The cell index of neighbour j
+            k=N_i(j);
+            
+            % We only need to calculate if the neighbour is a not a part of the boundary (non-positive k)
+            if(k>i)
+                
+                xk=X(k,:);
+                
+                % The indices of the vertices for the face between cell i and cell k (neighbour j)
+                Face_Vertex_Indices=Face_Index_i{j};
+                
+                % The face vertices for the face between cell i and cell k (neighbour j)
+                Face_Vertices=Vertices_Cell_i(Face_Vertex_Indices,:);
+                
+                % Area of the face 
+                a_ik=Face_Areas_i{j};
+                % Distance between the seeds
+                d_ik=norm(xi-xk);
+                
+                H_spvals_i(r)=i;
+                H_spvals_j(r)=k;
+                
+                H_spvals_val(r)=-0.5*a_ik/d_ik;
+                
+                % Increment r to keep track of number of non-zero entries of A and D
+                r=r+1;
+            end
+        end
+    end
+
+    % Now use H_spvals to construct the sparse matrix
+    H=sparse(H_spvals_i(1:r-1),H_spvals_j(1:r-1),H_spvals_val(1:r-1),Nw,Nw);
+
+    % Symmetrise
+    H=H+H';
+    
+    % Now having all the off-diagonal entries we can add the diagonal entries
+    H=H-spdiags(sum(H)',0,Nw,Nw);        
 end
