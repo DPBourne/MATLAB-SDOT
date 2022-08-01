@@ -74,7 +74,7 @@ epsilon2 = min(v_0);
 if(epsilon2<=0)
     warning('With the w_0 specified, there is at least one zero-volume cell')
     EXITFLAG=0;
-    w_0=[]; exiterr=[]; v_0=[];
+    w_0=[]; max_percent_err=[]; v_0=[];
     return
 end
 
