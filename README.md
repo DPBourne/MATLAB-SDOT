@@ -1,6 +1,6 @@
 # MATLAB-SDOT
 
-MATLAB functions for solving semi-discrete optimal transport problems in 3D.
+MATLAB functions for solving semi-discrete optimal transport problems in 2D & 3D.
 * ``SDOT_damped_Newton.m`` computes the optimal transport cost between the Lebesgue measure and a discrete measure on a 3D box with respect to the quadratic cost or the periodic quadratic cost, using the damped Newton method from
     * Jun Kitagawa, Quentin Mérigot, Boris Thibert, Convergence of a Newton algorithm for semi-discrete optimal transport. *J. Eur. Math. Soc.* 21 (2019), no. 9, pp. 2603–2651.
 * ``SDOT_fminunc.m`` solves the same problem using the MATLAB function ``fminunc`` (slower). 
@@ -21,7 +21,6 @@ See LICENCE.md
 
 ## Software limitations ##
 
-* The code is limited to 3D (2D code coming soon).
 * The source measure is the Lebesgue measure on a cuboid.
 * The support of the discrete target measure must be contained in the support of the source measure.
 * The transport cost is either the quadratic cost or the periodic quadratic cost.
